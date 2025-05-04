@@ -70,6 +70,45 @@ interaction_matrix_np <- function(THETA) {
      return(A)
 }
 
+ordering0 <- function(AM, labels) {
+     
+     I <- length(labels)
+     
+     # Relabel clusters with consecutive integers
+     labels_new <- rep(NA, I)
+     labels_unique <- sort(unique(labels))
+     
+     count <- 1
+     for (i in labels_unique) {
+          labels_new[labels == i] <- count
+          count <- count + 1
+     }
+     
+     labels <- labels_new
+     
+     # Relabel clusters by decreasing size
+     labels_new <- rep(NA, I)
+     
+     cluster_sizes <- table(labels)
+     labels_unique <- as.numeric(names(sort(cluster_sizes, decreasing = TRUE)))
+     
+     count <- 1
+     for (i in labels_unique) {
+          labels_new[labels == i] <- count
+          count <- count + 1
+     }
+     
+     labels <- labels_new
+     
+     # Reorder matrices based on new labels
+     ordered_nodes <- order(labels)
+     
+     return(list(
+          AM = AM[ordered_nodes, ordered_nodes],
+          labels = labels
+     ))
+}
+
 ordering <- function(AM, IM, PM, labels) {
      
      # Remove isolated nodes
