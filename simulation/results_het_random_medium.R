@@ -485,3 +485,40 @@ rownames(predictive_performance_table) <- NULL
 
 # View table
 print(predictive_performance_table)
+
+# ==============================================================================
+# Results summary table ======================================================== 
+
+results_df <- data.frame()
+
+# List of models and priors
+models <- c("class", "clist", "cleigen")
+priors <- c("dm", "dp", "py", "gn")
+
+# Loop through each model–prior combination
+for (model in models) {
+     for (prior in priors) {
+          obj_name <- paste0("results_sim_", model, "_", prior)
+          tmp <- data.frame(
+               Model    = toupper(model),
+               Prior    = toupper(prior),
+               VI_z0    = round(get(obj_name)$vi_distance, 3),
+               VI_z_zb  = round(get(obj_name)$horizontal_bound_credible_ball, 3),
+               H_median = get(obj_name)$H_quartiles[3],
+               ARI      = round(mean(get(obj_name)$ari_vec), 3),
+               FDR      = round(get(obj_name)$posterior_fdr_fnr$posterior_FDR, 3),
+               FNR      = round(get(obj_name)$posterior_fdr_fnr$posterior_FNR, 3),
+               WAIC     = round(get(obj_name)$waic$waic1, 0),
+               AUC      = round(get(obj_name)$pred_performance_stats$mean_auc, 3),
+               MSE      = round(get(obj_name)$pred_performance_stats$mean_mse, 3),
+               LogLoss  = round(get(obj_name)$pred_performance_stats$mean_logloss, 3)
+          )
+          results_df <- bind_rows(results_df, tmp)
+     }
+}
+
+rownames(results_df) <- NULL
+
+# View the final data frame
+print(results_df)
+
