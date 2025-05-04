@@ -1,0 +1,183 @@
+get_hyperpars <- function() 
+{
+     a_tau <- 3 
+     b_tau <- 2  
+     
+     a_sig <- 3  
+     b_sig <- 2
+
+     del2_U     <- 0.1  
+     n_U        <- 0    
+     n_tun_U    <- 100  
+     
+     del2_zeta  <- 0.1  
+     n_zeta     <- 0    
+     n_tun_zeta <- 100  
+     
+     list(
+          a_tau = a_tau, b_tau = b_tau,  
+          a_sig = a_sig, b_sig = b_sig,  
+          del2_U = del2_U, n_U = n_U, n_tun_U = n_tun_U,  
+          del2_zeta = del2_zeta, n_zeta = n_zeta, n_tun_zeta = n_tun_zeta
+     )
+}
+
+get_initial_values <- function(I, K, Q, hyps) 
+{
+     alpha  <- solve_alpha(K, I)
+     omega <- rep(1 / K, K)
+     Xi <- matrix(c(rep(0, I %% K), rep(seq_len(K) - 1, each = floor(I / K))), ncol = 1)
+     tausq <- 1 / rgamma(1, shape = hyps$a_tau, rate = hyps$b_tau)
+     sigsq <- 1 / rgamma(1, shape = hyps$a_sig, rate = hyps$b_sig)
+     zeta  <- rnorm(1, mean = 0, sd = sqrt(tausq))
+     U <- matrix(rnorm(K * Q, mean = 0, sd = sqrt(sigsq)), K, Q)
+     
+     list(
+          alpha = alpha, 
+          omega = omega, 
+          Xi = Xi, 
+          tausq = tausq, 
+          sigsq = sigsq,
+          zeta = zeta, 
+          U = U)
+}
+
+
+get_chains_data <- function(I, K, Q, n_sams, n_burn, n_skip) 
+{
+     
+     Eta_chain    <- matrix(NA, n_sams, 0.5 * K * (K + 1))
+     Xi_chain     <- matrix(NA, n_sams, I)
+     loglik_chain <- numeric(n_burn + n_skip * n_sams)
+     # omega_chain  <- matrix(NA, n_sams, K)
+     # zeta_chain   <- numeric(n_sams)
+     # U_chain      <- matrix(NA, n_sams, K * Q)
+     # tausq_chain  <- numeric(n_sams)
+     # sigsq_chain  <- numeric(n_sams)
+
+     list(
+          Eta_chain    = Eta_chain, 
+          Xi_chain     = Xi_chain, 
+          loglik_chain = loglik_chain
+          # omega_chain  = omega_chain, 
+          # zeta_chain   = zeta_chain, 
+          # U_chain      = U_chain,
+          # tausq_chain  = tausq_chain, 
+          # sigsq_chain  = sigsq_chain,
+     )
+}
+
+solve_alpha <- function(EK_target, I) 
+{
+     require(pracma)
+     
+     f <- function(alpha) alpha * log((alpha + I) / alpha) - EK_target
+     
+     # Use uniroot to find the root
+     alpha_solution <- uniroot(f, lower = 1e-5, upper = I, tol = 1e-6)
+     
+     return(alpha_solution$root)
+}
+
+MCMC <- function(Y, K, Q, n_sams, n_burn, n_skip) 
+{
+     I     <- get_I(Y)
+     THETA <- get_chains_data(I, K, Q, n_sams, n_burn, n_skip)
+     
+     hyps    <- get_hyperpars()
+     a_tau   <- hyps$a_tau
+     b_tau   <- hyps$b_tau
+     a_sig   <- hyps$a_sig
+     b_sig   <- hyps$b_sig
+     
+     del2_zeta   <- hyps$del2_zeta
+     n_zeta      <- hyps$n_zeta
+     n_tun_zeta  <- hyps$n_tun_zeta
+     del2_U      <- hyps$del2_U
+     n_U         <- hyps$n_U
+     n_tun_U     <- hyps$n_tun_U
+     
+     init   <- get_initial_values(I, K, Q, hyps)
+     Xi     <- init$Xi
+     omega  <- init$omega
+     zeta   <- init$zeta
+     U      <- init$U
+     tausq  <- init$tausq
+     sigsq  <- init$sigsq
+     alpha  <- init$alpha     
+     
+     B      <- n_burn + n_skip * n_sams
+     n_disp <- floor(0.1 * B)
+     
+     for (b in 1:B) {
+          
+          tmp        <- sample_zeta(b, n_tun_zeta, del2_zeta, n_zeta, n_burn, I, K, tausq, zeta, U, Xi, Y)
+          zeta       <- tmp$zeta
+          del2_zeta  <- tmp$del2_zeta
+          n_zeta     <- tmp$n_zeta
+          n_tun_zeta <- tmp$n_tun_zeta
+          
+          tmp     <- sample_U(b, n_tun_U, del2_U, n_U, n_burn, I, K, Q, sigsq, zeta, U, Xi, Y)
+          U       <- tmp$U
+          del2_U  <- tmp$del2_U
+          n_U     <- tmp$n_U
+          n_tun_U <- tmp$n_tun_U
+          
+          Eta   <- get_Eta(K, zeta, U)
+          
+          Xi    <- sample_Xi(I, K, omega, Eta, Xi, Y)
+          omega <- sample_omega(K, alpha, Xi)
+          tausq <- sample_tausq(a_tau, b_tau, zeta)
+          sigsq <- sample_sigsq(K, Q, a_sig, b_sig, U)
+          
+          THETA$loglik_chain[b] <- loglik(I, K, c(Eta), Xi, Y)
+
+          if ((b > n_burn) & (b %% n_skip == 0)) {
+               i <- (b - n_burn) / n_skip
+               THETA$Eta_chain[i, ]   <- c(Eta)
+               THETA$Xi_chain[i, ]    <- c(Xi)
+               # THETA$omega_chain[i, ] <- c(omega)
+               # THETA$zeta_chain[i]    <- c(zeta)
+               # THETA$U_chain[i, ]     <- c(U)
+               # THETA$tausq_chain[i]   <- c(tausq)
+               # THETA$sigsq_chain[i]   <- c(sigsq)
+          }
+          
+          if (b %% n_disp == 0) {
+               cat(
+                    "Progress: ", formatC(100 * b / B, digits = 1, format = "f"), "% complete\n",
+                    "zeta  mixing rate = ", formatC(100 * n_zeta / b, digits = 2, format = "f"), "%, del2_zeta  = ", formatC(del2_zeta, digits = 5, format = "f"), "\n",
+                    "U     mixing rate = ", formatC(100 * n_U / (b * K), digits = 2, format = "f"), "%, del2_U     = ", formatC(del2_U, digits = 5, format = "f"), "\n",
+                    "---------------------------------------------------\n",
+                    sep = ""
+               )
+          }
+     }
+     
+     return(THETA) 
+}
+
+incidence_matrix <- function(THETA) {
+     # Extract dimensions
+     I <- ncol(THETA$Xi_chain)
+     B <- nrow(THETA$Xi_chain)
+     
+     # Compute incidence matrix vector
+     A_vec <- incidence_matrix0(I, B, THETA$Xi_chain)
+     
+     # Initialize symmetric matrix
+     A <- matrix(0, I, I)
+     
+     # Fill upper triangle using nested for loops
+     for (i in 1:(I - 1)) {
+          for (ii in (i + 1):I) {
+               k <- get_k(i, ii, I)
+               A[i, ii] <- A_vec[k]
+               A[ii, i] <- A[i, ii]
+          }
+     }
+     
+     diag(A) <- 1
+     
+     return(A)
+}
