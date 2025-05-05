@@ -508,10 +508,7 @@ for (model in models) {
                ARI      = round(mean(get(obj_name)$ari_vec), 3),
                FDR      = round(get(obj_name)$posterior_fdr_fnr$posterior_FDR, 3),
                FNR      = round(get(obj_name)$posterior_fdr_fnr$posterior_FNR, 3),
-               WAIC     = round(get(obj_name)$waic$waic1, 0),
-               AUC      = round(get(obj_name)$pred_performance_stats$mean_auc, 3),
-               MSE      = round(get(obj_name)$pred_performance_stats$mean_mse, 3),
-               LogLoss  = round(get(obj_name)$pred_performance_stats$mean_logloss, 3)
+               WAIC     = round(get(obj_name)$waic$waic1, 0)
           )
           results_df <- bind_rows(results_df, tmp)
      }
