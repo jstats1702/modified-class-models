@@ -1,0 +1,10 @@
+data availale at:
+https://raw.githubusercontent.com/sassoftware/sas-viya-programming/master/python/network-analysis/drug_network.csv
+
+paper:
+https://www.researchgate.net/publication/227085871_Social_Networks_of_Drug_Users_in_High-Risk_Sites_Finding_the_Connections
+
+Social Networks of Drug Users in High-Risk Sites: Finding the Connections
+
+analysis
+https://github.com/sassoftware/sas-network-analysis/blob/main/applications/hartford/notebooks/Hartford%20Drug%20User%20Network%20Analysis.ipynb
